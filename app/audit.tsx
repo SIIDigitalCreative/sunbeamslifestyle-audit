@@ -25,7 +25,7 @@ interface Section {
 // ── API ───────────────────────────────────────────────────────────────────────
 const API_BASE = typeof window !== "undefined" ? window.location.origin : "";
 
-async function loadFromAPI(): Promise<{sections?:Section[]; priorities?:PriorityDef[]; auditor?:string; storeUrl?:string} | null> {
+async function loadFromAPI(): Promise<{sections?:Section[]; priorities?:PriorityDef[]; auditor?:string; storeUrl?:string; editPassword?:string} | null> {
   try {
     const r = await fetch(`${API_BASE}/api/progress`);
     if (!r.ok) return null;
@@ -229,6 +229,44 @@ export default function Audit() {
   const [loaded, setLoaded]             = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout>|null>(null);
 
+  // ── Password gate ──────────────────────────────────────────────────────────
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showPwModal, setShowPwModal]         = useState(false);
+  const [pwInput, setPwInput]                 = useState("");
+  const [pwError, setPwError]                 = useState(false);
+  const [pwAction, setPwAction]               = useState<"edit"|"priority">("edit");
+
+  // Password is stored in Redis so it can be changed without redeploying
+  const [editPassword, setEditPassword]       = useState("SDCreative.22");
+  const [showChangePw, setShowChangePw]       = useState(false);
+  const [newPw, setNewPw]                     = useState("");
+  const [newPwConfirm, setNewPwConfirm]       = useState("");
+  const [pwChangeMsg, setPwChangeMsg]         = useState("");
+
+  const requireAuth = (action: "edit"|"priority") => {
+    if (isAuthenticated) {
+      if (action === "edit") setEditMode(m => !m);
+      if (action === "priority") setShowPM(true);
+      return;
+    }
+    setPwAction(action);
+    setPwInput("");
+    setPwError(false);
+    setShowPwModal(true);
+  };
+
+  const submitPassword = () => {
+    if (pwInput === editPassword) {
+      setIsAuthenticated(true);
+      setShowPwModal(false);
+      if (pwAction === "edit") setEditMode(true);
+      if (pwAction === "priority") setShowPM(true);
+    } else {
+      setPwError(true);
+      setPwInput("");
+    }
+  };
+
   const pInfo = (p: string) => priorities.find(x => x.value === p) || priorities[0];
 
   // Load on mount
@@ -238,6 +276,7 @@ export default function Audit() {
       if (data?.priorities) setPriorities(data.priorities);
       if (data?.auditor)    setAuditor(data.auditor);
       if (data?.storeUrl)   setStoreUrl(data.storeUrl);
+      if (data?.editPassword) setEditPassword(data.editPassword);
       setLoaded(true);
     });
     // Poll every 30s
@@ -259,12 +298,13 @@ export default function Audit() {
     newSections: Section[] = sections,
     newAuditor: string = auditor,
     newUrl: string = storeUrl,
-    newPriorities: PriorityDef[] = priorities
+    newPriorities: PriorityDef[] = priorities,
+    newPassword: string = editPassword
   ) => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       setSyncStatus("saving");
-      await saveToAPI({ sections: newSections, auditor: newAuditor, storeUrl: newUrl, priorities: newPriorities });
+      await saveToAPI({ sections: newSections, auditor: newAuditor, storeUrl: newUrl, priorities: newPriorities, editPassword: newPassword });
       setSyncStatus("saved");
       setTimeout(() => setSyncStatus(""), 2500);
     }, 800);
@@ -500,6 +540,19 @@ export default function Audit() {
     .btn-del-section{padding:5px 12px;border:1px solid #fce6ec;background:#fce6ec;color:#CB0033;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;border-radius:3px;transition:all 0.18s;flex-shrink:0;}
     .btn-del-section:hover{background:#CB0033;color:#fff;}
 
+    /* PASSWORD MODAL */
+    .pw-overlay{position:fixed;inset:0;background:rgba(26,18,16,0.6);z-index:300;display:flex;align-items:center;justify-content:center;padding:20px;}
+    .pw-modal{background:#fff;border:1.5px solid #e8e2dc;border-radius:8px;padding:28px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(26,18,16,0.25);}
+    .pw-title{font-family:'Cormorant Garamond',serif;font-size:22px;color:#1a1210;margin-bottom:4px;}
+    .pw-sub{font-size:12px;color:#9a8a84;margin-bottom:20px;}
+    .pw-input{width:100%;border:1.5px solid #e8e2dc;border-radius:4px;padding:11px 14px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;background:#fff;color:#1a1210;margin-bottom:8px;}
+    .pw-input:focus{border-color:#CB0033;}
+    .pw-input.error{border-color:#CB0033;background:#fff5f7;}
+    .pw-error{font-size:11px;color:#CB0033;margin-bottom:12px;font-weight:500;}
+    .pw-actions{display:flex;gap:8px;justify-content:flex-end;}
+    .pw-change-link{font-size:11px;color:#A47860;background:none;border:none;cursor:pointer;padding:0;font-family:'DM Sans',sans-serif;text-decoration:underline;margin-top:12px;display:block;}
+    .pw-change-link:hover{color:#CB0033;}
+
     /* PRIORITY MANAGER MODAL */
     .pm-overlay{position:fixed;inset:0;background:rgba(26,18,16,0.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;}
     .pm-modal{background:#fff;border:1.5px solid #e8e2dc;border-radius:8px;padding:28px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(26,18,16,0.2);}
@@ -513,8 +566,9 @@ export default function Audit() {
     .pm-del{background:none;border:none;color:#CB0033;cursor:pointer;font-size:14px;padding:0 3px;opacity:0.5;transition:opacity 0.18s;}
     .pm-del:hover{opacity:1;}
     .pm-add{display:flex;gap:8px;align-items:center;}
-    .pm-input{flex:1;border:1.5px solid #e8e2dc;border-radius:4px;padding:9px 12px;font-family:'DM Sans',sans-serif;font-size:13px;outline:none;background:#faf8f6;}
-    .pm-input:focus{border-color:#CB0033;background:#fff;}
+    .pm-input{flex:1;border:1.5px solid #e8e2dc;border-radius:4px;padding:9px 12px;font-family:'DM Sans',sans-serif;font-size:13px;outline:none;background:#fff;color:#1a1210;}
+    .pm-input::placeholder{color:#9a8a84;}
+    .pm-input:focus{border-color:#CB0033;}
     .pm-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid #e8e2dc;}
 
     @media(max-width:640px){
@@ -590,10 +644,10 @@ export default function Audit() {
           <span className="sync" style={{color: syncStatus==="saved"?"#2d7a4f":syncStatus==="saving"?"#9a8a84":"#CB0033"}}>
             {syncStatus==="saving"?"Syncing…":syncStatus==="saved"?"✓ Saved":syncStatus==="error"?"Sync failed":""}
           </span>
-          <button className={`btn-edit ${editMode?"active":""}`} onClick={() => setEditMode(m=>!m)}>
+          <button className={`btn-edit ${editMode?"active":""}`} onClick={() => requireAuth("edit")}>
             {editMode ? "✓ Done Editing" : "✏ Edit Checklist"}
           </button>
-          <button className="btn-reset" style={{borderColor:"#A47860",color:"#A47860"}} onClick={() => setShowPM(true)}>
+          <button className="btn-reset" style={{borderColor:"#A47860",color:"#A47860"}} onClick={() => requireAuth("priority")}>
             ⊕ Priorities
           </button>
           <button className="btn-export" onClick={exportCSV}>Export CSV</button>
@@ -744,6 +798,61 @@ export default function Audit() {
           <button className="btn-add-section" onClick={addSection}>+ Add New Section</button>
         )}
       </div>
+      {/* PASSWORD MODAL */}
+      {showPwModal && (
+        <div className="pw-overlay" onClick={() => setShowPwModal(false)}>
+          <div className="pw-modal" onClick={e => e.stopPropagation()}>
+            <div className="pw-title">🔒 Editor Access</div>
+            <div className="pw-sub">Enter the password to {pwAction === "edit" ? "edit the checklist" : "manage priority labels"}.</div>
+            <input
+              className={`pw-input ${pwError?"error":""}`}
+              type="password"
+              placeholder="Enter password"
+              value={pwInput}
+              autoFocus
+              onChange={e => { setPwInput(e.target.value); setPwError(false); }}
+              onKeyDown={e => e.key === "Enter" && submitPassword()}
+            />
+            {pwError && <div className="pw-error">Incorrect password — try again.</div>}
+            <div className="pw-actions">
+              <button className="btn-reset" onClick={() => setShowPwModal(false)}>Cancel</button>
+              <button className="btn-export" onClick={submitPassword}>Unlock</button>
+            </div>
+            {isAuthenticated && (
+              <button className="pw-change-link" onClick={() => { setShowPwModal(false); setShowChangePw(true); }}>
+                Change password
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* CHANGE PASSWORD MODAL */}
+      {showChangePw && (
+        <div className="pw-overlay" onClick={() => setShowChangePw(false)}>
+          <div className="pw-modal" onClick={e => e.stopPropagation()}>
+            <div className="pw-title">Change Password</div>
+            <div className="pw-sub">Set a new password for editor access.</div>
+            <input className="pw-input" type="password" placeholder="New password" value={newPw}
+              onChange={e => { setNewPw(e.target.value); setPwChangeMsg(""); }} />
+            <input className="pw-input" type="password" placeholder="Confirm new password" value={newPwConfirm}
+              onChange={e => { setNewPwConfirm(e.target.value); setPwChangeMsg(""); }} />
+            {pwChangeMsg && <div style={{fontSize:12,color:pwChangeMsg.includes("✓")?"#2d7a4f":"#CB0033",marginBottom:8}}>{pwChangeMsg}</div>}
+            <div className="pw-actions">
+              <button className="btn-reset" onClick={() => { setShowChangePw(false); setNewPw(""); setNewPwConfirm(""); }}>Cancel</button>
+              <button className="btn-export" onClick={() => {
+                if (!newPw.trim()) { setPwChangeMsg("Password cannot be empty."); return; }
+                if (newPw !== newPwConfirm) { setPwChangeMsg("Passwords don't match."); return; }
+                setEditPassword(newPw);
+                save(sections, auditor, storeUrl, priorities, newPw);
+                setPwChangeMsg("✓ Password updated.");
+                setTimeout(() => { setShowChangePw(false); setNewPw(""); setNewPwConfirm(""); setPwChangeMsg(""); }, 1500);
+              }}>Save Password</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* PRIORITY MANAGER MODAL */}
       {showPriorityMgr && (
         <div className="pm-overlay" onClick={() => setShowPM(false)}>

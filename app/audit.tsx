@@ -22,27 +22,36 @@ interface Section {
   subsections: { title: string; items: CheckItem[] }[];
 }
 
-// ── Storage (localStorage) ───────────────────────────────────────────────────
-const LS_DEFAULT_KEY = "audit_progress_default";
+// ── Storage (Upstash Redis via /api/progress) ────────────────────────────────
+const API_BASE = typeof window !== "undefined" ? window.location.origin : "";
+const DEFAULT_KEY = "audit_progress_default";
 
-function lsKey(url?: string) {
-  if (!url || !url.trim()) return LS_DEFAULT_KEY;
-  // Normalise URL to a stable key: strip protocol, trailing slash, lowercase
-  return "audit_progress_" + url.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/+$/, "");
+function redisKey(url?: string) {
+  if (!url || !url.trim()) return DEFAULT_KEY;
+  return "audit_progress_" + url.trim().toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/[^a-z0-9._-]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "")
+    .slice(0, 180);
 }
 
 async function loadFromAPI(url?: string): Promise<{sections?:Section[]; priorities?:PriorityDef[]; auditor?:string; storeUrl?:string; editPassword?:string} | null> {
   try {
-    const raw = localStorage.getItem(lsKey(url));
-    if (!raw) return null;
-    const d = JSON.parse(raw);
+    const r = await fetch(`${API_BASE}/api/progress?key=${encodeURIComponent(redisKey(url))}`);
+    if (!r.ok) return null;
+    const d = await r.json();
     return d && Object.keys(d).length > 0 ? d : null;
   } catch { return null; }
 }
 
 async function saveToAPI(data: object, url?: string) {
   try {
-    localStorage.setItem(lsKey(url), JSON.stringify(data));
+    await fetch(`${API_BASE}/api/progress`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: redisKey(url), data }),
+    });
   } catch {}
 }
 

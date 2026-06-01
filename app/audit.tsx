@@ -1,14 +1,134 @@
 "use client";
 import { useEffect } from "react";
 
+// ── API helpers ───────────────────────────────────────────────────────────────
+const API_BASE = typeof window !== "undefined" ? window.location.origin : "";
+
+function collectState() {
+  const checks: Record<string, boolean> = {};
+  const notes: Record<string, string> = {};
+  const priorities: Record<string, string> = {};
+  const auditor = (document.getElementById('auditor-field') as HTMLElement)?.innerText || '';
+  const url     = (document.getElementById('url-field')    as HTMLElement)?.innerText || '';
+  document.querySelectorAll<HTMLInputElement>('.item-check').forEach((c, i) => {
+    checks[`item_${i}`] = c.checked;
+  });
+  document.querySelectorAll<HTMLTextAreaElement>('.notes-area').forEach((t, i) => {
+    notes[`note_${i}`] = t.value;
+  });
+  document.querySelectorAll<HTMLSelectElement>('.item-priority').forEach((s, i) => {
+    priorities[`priority_${i}`] = s.value;
+  });
+  return { checks, notes, priorities, auditor, url };
+}
+
+function applyState(data: { checks?: Record<string,boolean>; notes?: Record<string,string>; priorities?: Record<string,string>; auditor?: string; url?: string }) {
+  const { checks = {}, notes = {}, priorities = {}, auditor, url } = data;
+  document.querySelectorAll<HTMLInputElement>('.item-check').forEach((c, i) => {
+    c.checked = !!checks[`item_${i}`];
+    const itemText = c.parentElement?.querySelector('.item-text');
+    if (itemText) itemText.classList.toggle('checked-text', c.checked);
+  });
+  document.querySelectorAll<HTMLTextAreaElement>('.notes-area').forEach((t, i) => {
+    if (notes[`note_${i}`]) {
+      t.value = notes[`note_${i}`];
+      t.classList.add('visible');
+      const btn = t.previousElementSibling as HTMLButtonElement;
+      if (btn) btn.textContent = '− Hide';
+    }
+  });
+  document.querySelectorAll<HTMLSelectElement>('.item-priority').forEach((s, i) => {
+    const saved = priorities[`priority_${i}`];
+    if (saved) {
+      s.value = saved;
+      // Update the color class
+      s.className = s.className.replace(/tag-\w+/g, '');
+      const info = PRIORITY_OPTIONS.find(o => o.value === saved);
+      if (info) s.classList.add(info.cls);
+    }
+  });
+  if (auditor && auditor !== 'Click to add name') {
+    const el = document.getElementById('auditor-field');
+    if (el) el.innerText = auditor;
+  }
+  if (url && url !== 'Click to add URL') {
+    const el = document.getElementById('url-field');
+    if (el) el.innerText = url;
+  }
+}
+
+async function loadFromRedis() {
+  try {
+    const r = await fetch(`${API_BASE}/api/progress`);
+    if (!r.ok) throw new Error("api error");
+    const d = await r.json();
+    if (d.data && Object.keys(d.data).length > 0) {
+      applyState(d.data);
+      updateAll();
+    }
+  } catch {
+    // Fallback to localStorage
+    try {
+      const raw = localStorage.getItem("sunbeams-shopify-audit");
+      if (raw) { applyState(JSON.parse(raw)); updateAll(); }
+    } catch {}
+  }
+}
+
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+function saveState() {
+  const state = collectState();
+  // Always save locally as backup
+  try { localStorage.setItem("sunbeams-shopify-audit", JSON.stringify(state)); } catch {}
+  // Debounced save to Redis
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    setSyncBadge("saving");
+    try {
+      const r = await fetch(`${API_BASE}/api/progress`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(state),
+      });
+      setSyncBadge(r.ok ? "saved" : "error");
+    } catch {
+      setSyncBadge("error");
+    }
+  }, 800);
+}
+
+function setSyncBadge(status: "saving" | "saved" | "error") {
+  const el = document.getElementById('sync-badge');
+  if (!el) return;
+  if (status === "saving") { el.textContent = "Syncing…"; el.style.color = "#9a8a84"; }
+  if (status === "saved")  { el.textContent = "✓ Saved";  el.style.color = "#2d7a4f"; setTimeout(() => { el.textContent = ""; }, 2500); }
+  if (status === "error")  { el.textContent = "Sync failed"; el.style.color = "#CB0033"; }
+}
+
 export default function Audit() {
   useEffect(() => {
     // Set today's date
     const dateEl = document.getElementById('date-field');
     if (dateEl) dateEl.textContent = new Date().toLocaleDateString('en-GB', {day:'numeric',month:'long',year:'numeric'});
 
-    // Initial count
-    updateAll();
+    // Load from Redis (falls back to localStorage)
+    loadFromRedis();
+
+    // Auto-save auditor and URL fields on edit
+    const auditorEl = document.getElementById('auditor-field');
+    const urlEl = document.getElementById('url-field');
+    auditorEl?.addEventListener('input', saveState);
+    urlEl?.addEventListener('input', saveState);
+
+    // Poll for updates every 30 seconds
+    const poll = setInterval(loadFromRedis, 30000);
+
+    return () => {
+      clearInterval(poll);
+      auditorEl?.removeEventListener('input', saveState);
+      urlEl?.removeEventListener('input', saveState);
+    };
   }, []);
 
   return (
@@ -325,6 +445,24 @@ export default function Audit() {
         .tag-month   { background: #eef4ff; color: #3a5fc8; }
         .tag-ongoing { background: var(--pass-bg);  color: var(--pass); }
 
+        select.item-tag {
+          border: none;
+          cursor: pointer;
+          font-family: 'DM Sans', sans-serif;
+          font-weight: 600;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          appearance: none;
+          -webkit-appearance: none;
+          padding-right: 14px;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='currentColor' opacity='0.5'/%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-position: right 4px center;
+          outline: none;
+          transition: opacity 0.18s;
+        }
+        select.item-tag:hover { opacity: 0.8; }
+
         .notes-toggle {
           font-size: 11px;
           color: var(--warm-brown);
@@ -436,6 +574,14 @@ export default function Audit() {
           <div className="stat-pill pill-total"><span className="num" id="cnt-total">0</span><span className="lbl">Total</span></div>
         </div>
         <button className="export-btn" onClick={() => exportCSV()}>Export CSV</button>
+        <button className="export-btn" style={{background:'transparent',border:'1.5px solid #e8e2dc',color:'var(--ink-muted)'}} onClick={() => {
+          if(confirm('Reset all progress? This cannot be undone.')) {
+            localStorage.removeItem("sunbeams-shopify-audit");
+            fetch(`${API_BASE}/api/progress`, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({})});
+            window.location.reload();
+          }
+        }}>Reset</button>
+        <span id="sync-badge" style={{fontSize:11,letterSpacing:'0.1em',minWidth:70,textAlign:'right'}}></span>
       </div>
 
       <div className="main">
@@ -727,11 +873,22 @@ export default function Audit() {
 // ── Helpers ────────────────────────────────────────────────────────────────
 let itemIndex = 0;
 
+const PRIORITY_OPTIONS = [
+  { value: 'now',     label: 'Now',        cls: 'tag-now' },
+  { value: 'week',    label: 'This Week',  cls: 'tag-week' },
+  { value: 'month',   label: 'This Month', cls: 'tag-month' },
+  { value: 'ongoing', label: 'Ongoing',    cls: 'tag-ongoing' },
+];
+
+function getPriorityInfo(p: string) {
+  return PRIORITY_OPTIONS.find(o => o.value === p) || PRIORITY_OPTIONS[0];
+}
+
 function item(text: string, note: string, priority: string, placeholder: string) {
-  const tagClass = `tag-${priority === 'now' ? 'now' : priority === 'week' ? 'week' : priority === 'month' ? 'month' : 'ongoing'}`;
-  const tagLabel = priority === 'now' ? 'Now' : priority === 'week' ? 'This Week' : priority === 'month' ? 'This Month' : 'Ongoing';
+  const idx = itemIndex++;
+  const info = getPriorityInfo(priority);
   return (
-    <div className="item" key={itemIndex++}>
+    <div className="item" key={idx}>
       <input type="checkbox" className="item-check" onChange={(e) => tick(e.target as HTMLInputElement)} />
       <div className="item-body">
         <div className="item-text">{text}</div>
@@ -739,7 +896,16 @@ function item(text: string, note: string, priority: string, placeholder: string)
         <button className="notes-toggle" onClick={(e) => toggleNote(e.target as HTMLButtonElement)}>+ Add finding</button>
         <textarea className="notes-area" placeholder={placeholder || ''}></textarea>
       </div>
-      <span className={`item-tag ${tagClass}`}>{tagLabel}</span>
+      <select
+        className={`item-tag item-priority ${info.cls}`}
+        defaultValue={priority}
+        onChange={(e) => changePriority(e.target as HTMLSelectElement)}
+        title="Change priority"
+      >
+        {PRIORITY_OPTIONS.map(o => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
     </div>
   );
 }
@@ -749,6 +915,7 @@ function tick(el: HTMLInputElement) {
   const itemText = el.parentElement?.querySelector('.item-text');
   if (itemText) itemText.classList.toggle('checked-text', el.checked);
   updateAll();
+  saveState();
 }
 
 function updateAll() {
@@ -799,7 +966,19 @@ function toggleNote(btn: HTMLButtonElement) {
   if (ta) {
     ta.classList.toggle('visible');
     btn.textContent = ta.classList.contains('visible') ? '− Hide' : '+ Add finding';
+    // Save when typing in notes
+    ta.addEventListener('input', saveState);
   }
+}
+
+function changePriority(sel: HTMLSelectElement) {
+  const val = sel.value;
+  const info = PRIORITY_OPTIONS.find(o => o.value === val);
+  if (info) {
+    sel.className = sel.className.replace(/tag-\w+/g, '').trim();
+    sel.classList.add('item-tag', 'item-priority', info.cls);
+  }
+  saveState();
 }
 
 function exportCSV() {

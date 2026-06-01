@@ -22,27 +22,27 @@ interface Section {
   subsections: { title: string; items: CheckItem[] }[];
 }
 
-// ── API ───────────────────────────────────────────────────────────────────────
-const API_BASE = typeof window !== "undefined" ? window.location.origin : "";
+// ── Storage (localStorage) ───────────────────────────────────────────────────
+const LS_DEFAULT_KEY = "audit_progress_default";
+
+function lsKey(url?: string) {
+  if (!url || !url.trim()) return LS_DEFAULT_KEY;
+  // Normalise URL to a stable key: strip protocol, trailing slash, lowercase
+  return "audit_progress_" + url.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/+$/, "");
+}
 
 async function loadFromAPI(url?: string): Promise<{sections?:Section[]; priorities?:PriorityDef[]; auditor?:string; storeUrl?:string; editPassword?:string} | null> {
   try {
-    const key = url ? `?url=${encodeURIComponent(url)}` : "";
-    const r = await fetch(`${API_BASE}/api/progress${key}`);
-    if (!r.ok) return null;
-    const d = await r.json();
-    return d.data && Object.keys(d.data).length > 0 ? d.data : null;
+    const raw = localStorage.getItem(lsKey(url));
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    return d && Object.keys(d).length > 0 ? d : null;
   } catch { return null; }
 }
 
 async function saveToAPI(data: object, url?: string) {
   try {
-    const key = url ? `?url=${encodeURIComponent(url)}` : "";
-    await fetch(`${API_BASE}/api/progress${key}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+    localStorage.setItem(lsKey(url), JSON.stringify(data));
   } catch {}
 }
 
@@ -272,28 +272,30 @@ export default function Audit() {
 
   const pInfo = (p: string) => priorities.find(x => x.value === p) || priorities[0];
 
-  // Load on mount
+  // Load on mount — restore last session (URL + data)
   useEffect(() => {
+    // First, check if we have a saved default/last-used URL
     loadFromAPI().then(data => {
-      if (data?.storeUrl)   setStoreUrl(data.storeUrl);
-      if (data?.sections)   setSections(data.sections);
-      if (data?.priorities) setPriorities(data.priorities);
-      if (data?.auditor)    setAuditor(data.auditor);
-      if (data?.editPassword) setEditPassword(data.editPassword);
-      setLoaded(true);
-    });
-    // Poll every 30s
-    const poll = setInterval(() => {
-      if (!editMode) {
-        loadFromAPI().then(data => {
-          if (data?.sections)   setSections(data.sections);
-          if (data?.priorities) setPriorities(data.priorities);
-          if (data?.auditor)    setAuditor(data.auditor);
-          if (data?.storeUrl)   setStoreUrl(data.storeUrl);
+      const savedUrl = data?.storeUrl || "";
+      if (savedUrl) {
+        // Load the data saved under that store URL
+        setStoreUrl(savedUrl);
+        loadFromAPI(savedUrl).then(urlData => {
+          const d = urlData || data;
+          if (d?.sections)      setSections(d.sections);
+          if (d?.priorities)    setPriorities(d.priorities);
+          if (d?.auditor)       setAuditor(d.auditor);
+          if (d?.editPassword)  setEditPassword(d.editPassword);
+          setLoaded(true);
         });
+      } else {
+        if (data?.sections)     setSections(data.sections);
+        if (data?.priorities)   setPriorities(data.priorities);
+        if (data?.auditor)      setAuditor(data.auditor);
+        if (data?.editPassword) setEditPassword(data.editPassword);
+        setLoaded(true);
       }
-    }, 30000);
-    return () => clearInterval(poll);
+    });
   }, []);
 
   // Auto-save with debounce
@@ -307,7 +309,13 @@ export default function Audit() {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       setSyncStatus("saving");
-      await saveToAPI({ sections: newSections, auditor: newAuditor, storeUrl: newUrl, priorities: newPriorities, editPassword: newPassword }, newUrl);
+      const payload = { sections: newSections, auditor: newAuditor, storeUrl: newUrl, priorities: newPriorities, editPassword: newPassword };
+      // Save under the store-URL key (or default key if no URL)
+      await saveToAPI(payload, newUrl);
+      // Also persist the last-used URL in the default key so we can restore it on reload
+      if (newUrl && newUrl.trim()) {
+        await saveToAPI({ storeUrl: newUrl }, undefined);
+      }
       setSyncStatus("saved");
       setTimeout(() => setSyncStatus(""), 2500);
     }, 800);

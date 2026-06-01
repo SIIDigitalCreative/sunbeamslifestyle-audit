@@ -25,18 +25,20 @@ interface Section {
 // ── API ───────────────────────────────────────────────────────────────────────
 const API_BASE = typeof window !== "undefined" ? window.location.origin : "";
 
-async function loadFromAPI(): Promise<{sections?:Section[]; priorities?:PriorityDef[]; auditor?:string; storeUrl?:string; editPassword?:string} | null> {
+async function loadFromAPI(url?: string): Promise<{sections?:Section[]; priorities?:PriorityDef[]; auditor?:string; storeUrl?:string; editPassword?:string} | null> {
   try {
-    const r = await fetch(`${API_BASE}/api/progress`);
+    const key = url ? `?url=${encodeURIComponent(url)}` : "";
+    const r = await fetch(`${API_BASE}/api/progress${key}`);
     if (!r.ok) return null;
     const d = await r.json();
     return d.data && Object.keys(d.data).length > 0 ? d.data : null;
   } catch { return null; }
 }
 
-async function saveToAPI(data: object) {
+async function saveToAPI(data: object, url?: string) {
   try {
-    await fetch(`${API_BASE}/api/progress`, {
+    const key = url ? `?url=${encodeURIComponent(url)}` : "";
+    await fetch(`${API_BASE}/api/progress${key}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
@@ -54,165 +56,166 @@ function di(text: string, note: string, priority: Priority, placeholder = ""): C
 const DEFAULT_SECTIONS: Section[] = [
   { id:"s1", num:1, title:"Store Health & Performance", badge:"critical", subsections:[
     { title:"Page Speed", items:[
-      di("Run PageSpeed Insights on homepage (mobile + desktop)","Mobile LCP must be under 2.5s. Score target: 70+ mobile, 90+ desktop.","now","e.g. Mobile score: 52, LCP: 4.1s — needs image compression"),
-      di("Run PageSpeed on top 3 product pages and collection pages","Product pages are high-traffic — slow load = direct revenue loss.","now","e.g. Product page LCP: 3.8s — hero image not compressed"),
-      di("Check Total Blocking Time (TBT) — must be under 200ms","TBT above 600ms indicates heavy JS — usually from unused apps.","now",""),
-      di("Audit all installed apps — remove any inactive or unused apps","Every app adds JS to the storefront even when inactive.","now","e.g. Found 14 apps — 6 unused, removing saves ~400ms"),
-      di("Confirm all product images are compressed and served in WebP format","Shopify auto-converts to WebP, but source files must not exceed 1MB each.","week",""),
+      di("Run PageSpeed Insights on homepage (mobile + desktop)","Mobile LCP must be under 2.5s. Score target: 70+ mobile, 90+ desktop.","next-month","e.g. Mobile score: 52, LCP: 4.1s — needs image compression"),
+      di("Run PageSpeed on top 3 product pages and collection pages","Product pages are high-traffic — slow load = direct revenue loss.","next-month","e.g. Product page LCP: 3.8s — hero image not compressed"),
+      di("Check Total Blocking Time (TBT) — must be under 200ms","TBT above 600ms indicates heavy JS — usually from unused apps.","next-month",""),
+      di("Audit all installed apps — remove any inactive or unused apps","Every app adds JS to the storefront even when inactive.","next-month","e.g. Found 14 apps — 6 unused, removing saves ~400ms"),
+      di("Confirm all product images are compressed and served in WebP format","Shopify auto-converts to WebP, but source files must not exceed 1MB each.","next-month",""),
     ]},
     { title:"Technical Health", items:[
-      di("Crawl store with Screaming Frog or Ahrefs — identify all 404 errors","Broken links hurt SEO and user trust. Redirect or fix all 404s.","week",""),
-      di("Check for redirect chains (A→B→C) — flatten to single redirects (A→C)","Each redirect adds ~200ms of latency per hop.","week",""),
-      di("Confirm SSL certificate is valid and all pages serve on HTTPS","","now",""),
-      di("Verify XML sitemap is submitted to Google Search Console","Shopify generates sitemap.xml automatically — confirm it's indexed.","week",""),
-      di("Check robots.txt — confirm key collection and product pages are crawlable","","week",""),
-      di("Verify canonical tags are correctly set on all product and collection pages","Duplicate URLs without canonicals cause SEO dilution.","week",""),
+      di("Crawl store with Screaming Frog or Ahrefs — identify all 404 errors","Broken links hurt SEO and user trust. Redirect or fix all 404s.","next-month",""),
+      di("Check for redirect chains (A→B→C) — flatten to single redirects (A→C)","Each redirect adds ~200ms of latency per hop.","next-month",""),
+      di("Confirm SSL certificate is valid and all pages serve on HTTPS","","next-month",""),
+      di("Verify XML sitemap is submitted to Google Search Console","Shopify generates sitemap.xml automatically — confirm it's indexed.","next-month",""),
+      di("Check robots.txt — confirm key collection and product pages are crawlable","","next-month",""),
+      di("Verify canonical tags are correctly set on all product and collection pages","Duplicate URLs without canonicals cause SEO dilution.","next-month",""),
     ]},
   ]},
   { id:"s2", num:2, title:"Brand & Visual Consistency", badge:"high", subsections:[
     { title:"Visual Identity", items:[
-      di("Brand colors (#CB0033, #A47860, #D6D2C4, #F4F0EC) applied consistently across all pages","Check header, footer, buttons, badges, and hover states.","now",""),
-      di("Typography consistent: Playfair Display for headings, DM Sans for body throughout","No rogue fonts from app widgets or third-party embeds.","week",""),
-      di("Logo correct on all pages — no stretched, pixelated, or outdated versions","Check desktop header, mobile header, favicon, and email templates.","now",""),
-      di("All sub-brand pages (Quencha, Crysalis, Primeo, Slique, Nest) use correct brand identity","Each sub-brand has its own color and typography treatment.","week",""),
-      di("No clashing UI from app-injected widgets (chat bubbles, review stars, popups)","Audit visual weight — remove or restyle anything that breaks brand.","week",""),
+      di("Brand colors (#CB0033, #A47860, #D6D2C4, #F4F0EC) applied consistently across all pages","Check header, footer, buttons, badges, and hover states.","next-month",""),
+      di("Typography consistent: Playfair Display for headings, DM Sans for body throughout","No rogue fonts from app widgets or third-party embeds.","next-month",""),
+      di("Logo correct on all pages — no stretched, pixelated, or outdated versions","Check desktop header, mobile header, favicon, and email templates.","next-month",""),
+      di("All sub-brand pages (Quencha, Crysalis, Primeo, Slique, Nest) use correct brand identity","Each sub-brand has its own color and typography treatment.","next-month",""),
+      di("No clashing UI from app-injected widgets (chat bubbles, review stars, popups)","Audit visual weight — remove or restyle anything that breaks brand.","next-month",""),
     ]},
     { title:"Image Standards", items:[
-      di("All hero images are lifestyle photography — no white-background product shots in hero positions","White-bg images in lifestyle slots read as low-effort.","week",""),
-      di("Product images consistent: same angle, same white background, same padding, same aspect ratio","Inconsistency across a collection page looks unprofessional.","week",""),
-      di("No stock photos that look generic — all imagery feels ownable to Sunbeams Lifestyle","Run a visual audit of the homepage and top 5 collection pages.","month",""),
+      di("All hero images are lifestyle photography — no white-background product shots in hero positions","White-bg images in lifestyle slots read as low-effort.","next-month",""),
+      di("Product images consistent: same angle, same white background, same padding, same aspect ratio","Inconsistency across a collection page looks unprofessional.","next-month",""),
+      di("No stock photos that look generic — all imagery feels ownable to Sunbeams Lifestyle","Run a visual audit of the homepage and top 5 collection pages.","next-month",""),
     ]},
   ]},
   { id:"s3", num:3, title:"Product Pages", badge:"critical", subsections:[
     { title:"Copy & Content", items:[
-      di("Every product has a title, description, key benefits (bullets), and care/usage info","No placeholder text or empty description fields.","now",""),
-      di("Product titles follow format: Brand + Product Name + Key Feature + Variant","e.g. Quencha 19oz Insulated Tumbler — Matte Black","now",""),
-      di("All prices correct and consistent with Lazada/Shopee pricing parity policy","Price discrepancies erode trust if customers cross-check.","now",""),
-      di("Variants (size, color) all populated — no broken variants showing as unavailable","Check every SKU, especially bundles and gift sets.","now",""),
-      di("At least 5 product images per SKU: hero, lifestyle, detail, dimension, in-use","Fewer than 4 images measurably reduces conversion.","week",""),
+      di("Every product has a title, description, key benefits (bullets), and care/usage info","No placeholder text or empty description fields.","next-month",""),
+      di("Product titles follow format: Brand + Product Name + Key Feature + Variant","e.g. Quencha 19oz Insulated Tumbler — Matte Black","next-month",""),
+      di("All prices correct and consistent with Lazada/Shopee pricing parity policy","Price discrepancies erode trust if customers cross-check.","next-month",""),
+      di("Variants (size, color) all populated — no broken variants showing as unavailable","Check every SKU, especially bundles and gift sets.","next-month",""),
+      di("At least 5 product images per SKU: hero, lifestyle, detail, dimension, in-use","Fewer than 4 images measurably reduces conversion.","next-month",""),
     ]},
     { title:"Trust & Conversion", items:[
-      di("Reviews visible on all active products — minimum 3 reviews before running paid ads","Products with zero reviews should not receive paid traffic.","now",""),
-      di("Shipping info and delivery timeline clearly visible on product page (not hidden in FAQ)","Filipino shoppers abandon if shipping info is hard to find.","now",""),
-      di("Return policy clearly linked or visible near Add to Cart button","Reduces friction for first-time buyers.","week",""),
-      di("Warranty information present on applicable products (Quencha, Crysalis, Primeo)","","week",""),
-      di("Cross-sell / You may also like section functional and showing relevant products","Do not cross-sell products from a different sub-brand unless intentional.","month",""),
+      di("Reviews visible on all active products — minimum 3 reviews before running paid ads","Products with zero reviews should not receive paid traffic.","next-month",""),
+      di("Shipping info and delivery timeline clearly visible on product page (not hidden in FAQ)","Filipino shoppers abandon if shipping info is hard to find.","next-month",""),
+      di("Return policy clearly linked or visible near Add to Cart button","Reduces friction for first-time buyers.","next-month",""),
+      di("Warranty information present on applicable products (Quencha, Crysalis, Primeo)","","next-month",""),
+      di("Cross-sell / You may also like section functional and showing relevant products","Do not cross-sell products from a different sub-brand unless intentional.","next-month",""),
     ]},
   ]},
   { id:"s4", num:4, title:"Checkout & Conversion", badge:"critical", subsections:[
     { title:"Checkout Flow", items:[
-      di("Complete a test purchase end-to-end — confirm all steps work on mobile","Do this on iOS and Android. Use a ₱1 test product.","now","e.g. Tested on iPhone 14 — payment processed, confirmation email received"),
-      di("Guest checkout enabled — do not force account creation","Forced registration is the #1 checkout abandonment cause.","now",""),
-      di("All payment methods working: GCash, Maya, credit card, COD (if applicable)","Test each one or verify via Shopify Payments dashboard.","now",""),
-      di("Shipping rates correct — no ₱0 shipping showing when it should be paid","Check flat rate, weight-based, and free shipping threshold.","now",""),
-      di("Order confirmation email sends immediately with correct order details","Check spam folder too — if it lands there, fix email sender reputation.","now",""),
+      di("Complete a test purchase end-to-end — confirm all steps work on mobile","Do this on iOS and Android. Use a ₱1 test product.","next-month","e.g. Tested on iPhone 14 — payment processed, confirmation email received"),
+      di("Guest checkout enabled — do not force account creation","Forced registration is the #1 checkout abandonment cause.","next-month",""),
+      di("All payment methods working: GCash, Maya, credit card, COD (if applicable)","Test each one or verify via Shopify Payments dashboard.","next-month",""),
+      di("Shipping rates correct — no ₱0 shipping showing when it should be paid","Check flat rate, weight-based, and free shipping threshold.","next-month",""),
+      di("Order confirmation email sends immediately with correct order details","Check spam folder too — if it lands there, fix email sender reputation.","next-month",""),
     ]},
     { title:"Cart & Upsell", items:[
-      di("Cart page shows product image, name, variant, quantity, and subtotal clearly","No truncated product names or missing images in cart.","week",""),
-      di("Free shipping progress bar visible in cart (e.g. 'Add ₱150 more for free shipping')","Increases AOV by 15–25% on average.","week",""),
-      di("Cart upsell or cross-sell configured — relevant add-on shown in cart or at checkout","Bundle offers or accessories, not random products.","month",""),
+      di("Cart page shows product image, name, variant, quantity, and subtotal clearly","No truncated product names or missing images in cart.","next-month",""),
+      di("Free shipping progress bar visible in cart (e.g. 'Add ₱150 more for free shipping')","Increases AOV by 15–25% on average.","next-month",""),
+      di("Cart upsell or cross-sell configured — relevant add-on shown in cart or at checkout","Bundle offers or accessories, not random products.","next-month",""),
     ]},
   ]},
   { id:"s5", num:5, title:"Email & Automation (Klaviyo)", badge:"high", subsections:[
     { title:"Core Flows", items:[
-      di("Welcome series active (3 emails minimum: welcome, brand story, first purchase offer)","Welcome flow generates 30–50% of total Klaviyo revenue for most brands.","now",""),
-      di("Abandoned cart flow active (3 emails: 1hr, 24hr, 72hr)","3-email sequence recovers 3–5x more revenue than a single email.","now",""),
-      di("Browse abandonment flow active for product page visitors","Captures intent before cart — often higher open rate than cart abandonment.","week",""),
-      di("Post-purchase flow active (thank you + review request at Day 7 + replenishment at Day 30)","Review request timing: 7 days for most products, 14 days for skincare.","week",""),
-      di("Win-back flow active for customers with no purchase in 90 days","Offer a discount or 'we miss you' message with a product spotlight.","month",""),
+      di("Welcome series active (3 emails minimum: welcome, brand story, first purchase offer)","Welcome flow generates 30–50% of total Klaviyo revenue for most brands.","next-month",""),
+      di("Abandoned cart flow active (3 emails: 1hr, 24hr, 72hr)","3-email sequence recovers 3–5x more revenue than a single email.","next-month",""),
+      di("Browse abandonment flow active for product page visitors","Captures intent before cart — often higher open rate than cart abandonment.","next-month",""),
+      di("Post-purchase flow active (thank you + review request at Day 7 + replenishment at Day 30)","Review request timing: 7 days for most products, 14 days for skincare.","next-month",""),
+      di("Win-back flow active for customers with no purchase in 90 days","Offer a discount or 'we miss you' message with a product spotlight.","next-month",""),
     ]},
     { title:"List Health", items:[
-      di("Email list cleaned — suppressed all unengaged subscribers (no open in 180 days)","Sending to unengaged contacts tanks deliverability.","month",""),
-      di("Double opt-in configured for all new signup forms","Required for GDPR compliance and improves list quality.","week",""),
-      di("Unsubscribe rate below 0.3% per campaign — if higher, audit sending frequency","Above 0.5% triggers deliverability problems.","ongoing",""),
+      di("Email list cleaned — suppressed all unengaged subscribers (no open in 180 days)","Sending to unengaged contacts tanks deliverability.","next-month",""),
+      di("Double opt-in configured for all new signup forms","Required for GDPR compliance and improves list quality.","next-month",""),
+      di("Unsubscribe rate below 0.3% per campaign — if higher, audit sending frequency","Above 0.5% triggers deliverability problems.","next-month",""),
     ]},
   ]},
   { id:"s6", num:6, title:"Analytics & Tracking", badge:"critical", subsections:[
     { title:"Pixel & Conversion Tracking", items:[
-      di("Meta Pixel firing on all pages — verified via Meta Pixel Helper Chrome extension","Check: PageView, ViewContent, AddToCart, InitiateCheckout, Purchase events.","now",""),
-      di("TikTok Pixel active and Purchase event firing correctly","Use TikTok Pixel Helper to verify — critical for TikTok ad optimisation.","now",""),
-      di("Google Analytics 4 installed and Purchase event firing with correct revenue value","Verify in GA4 DebugView — revenue must not be ₱0 or undefined.","now",""),
-      di("Google Ads conversion tracking set up and recording purchases","Without this, Smart Bidding has no data to optimise.","now",""),
-      di("All pixels tested with a real purchase — confirm revenue value is correct in each platform","Pixel Helper tools do not verify revenue accuracy — only a live purchase does.","now","e.g. Tested ₱799.75 purchase — Meta shows ₱799.75 ✓, GA4 shows ₱799.75 ✓"),
+      di("Meta Pixel firing on all pages — verified via Meta Pixel Helper Chrome extension","Check: PageView, ViewContent, AddToCart, InitiateCheckout, Purchase events.","next-month",""),
+      di("TikTok Pixel active and Purchase event firing correctly","Use TikTok Pixel Helper to verify — critical for TikTok ad optimisation.","next-month",""),
+      di("Google Analytics 4 installed and Purchase event firing with correct revenue value","Verify in GA4 DebugView — revenue must not be ₱0 or undefined.","next-month",""),
+      di("Google Ads conversion tracking set up and recording purchases","Without this, Smart Bidding has no data to optimise.","next-month",""),
+      di("All pixels tested with a real purchase — confirm revenue value is correct in each platform","Pixel Helper tools do not verify revenue accuracy — only a live purchase does.","next-month","e.g. Tested ₱799.75 purchase — Meta shows ₱799.75 ✓, GA4 shows ₱799.75 ✓"),
     ]},
     { title:"Reporting", items:[
-      di("Shopify Analytics: conversion rate, AOV, and sessions reviewed weekly","Baseline: PH e-commerce conversion rate 1.5–3%. Below 1% = CRO priority.","ongoing",""),
-      di("UTM parameters on all paid ad links — no untagged traffic in GA4","Every Meta, TikTok, and Google ad must have utm_source, utm_medium, utm_campaign.","now",""),
-      di("Search Console connected — impressions, clicks, and ranking keywords reviewed monthly","Identifies organic growth opportunities and indexing issues.","week",""),
+      di("Shopify Analytics: conversion rate, AOV, and sessions reviewed weekly","Baseline: PH e-commerce conversion rate 1.5–3%. Below 1% = CRO priority.","next-month",""),
+      di("UTM parameters on all paid ad links — no untagged traffic in GA4","Every Meta, TikTok, and Google ad must have utm_source, utm_medium, utm_campaign.","next-month",""),
+      di("Search Console connected — impressions, clicks, and ranking keywords reviewed monthly","Identifies organic growth opportunities and indexing issues.","next-month",""),
     ]},
   ]},
   { id:"s7", num:7, title:"SEO", badge:"high", subsections:[
     { title:"On-Page SEO", items:[
-      di("Every product page has a unique meta title and meta description","Shopify defaults to product title — this is not enough. Customize all.","week",""),
-      di("Meta titles follow format: Primary Keyword | Brand Name — under 60 characters","e.g. Insulated Tumbler 550ml | Quencha by Sunbeams Lifestyle","week",""),
-      di("All product images have descriptive alt text (not 'image1.jpg' or blank)","Alt text is used by screen readers and Google Image Search.","week",""),
-      di("H1 tag on every product and collection page — matches primary keyword","Shopify often uses product title as H1 — verify it's correct and keyword-rich.","week",""),
-      di("Collection pages have descriptive copy (150+ words) above or below the product grid","Google needs text to understand what a collection page is about.","month",""),
+      di("Every product page has a unique meta title and meta description","Shopify defaults to product title — this is not enough. Customize all.","next-month",""),
+      di("Meta titles follow format: Primary Keyword | Brand Name — under 60 characters","e.g. Insulated Tumbler 550ml | Quencha by Sunbeams Lifestyle","next-month",""),
+      di("All product images have descriptive alt text (not 'image1.jpg' or blank)","Alt text is used by screen readers and Google Image Search.","next-month",""),
+      di("H1 tag on every product and collection page — matches primary keyword","Shopify often uses product title as H1 — verify it's correct and keyword-rich.","next-month",""),
+      di("Collection pages have descriptive copy (150+ words) above or below the product grid","Google needs text to understand what a collection page is about.","next-month",""),
     ]},
     { title:"Technical SEO", items:[
-      di("No duplicate product URLs — confirm /products/ pages have canonical tags","Shopify can create duplicate URLs via collections — canonicals prevent penalties.","week",""),
-      di("Internal linking: collection pages link to related collections and top products","Distributes link equity and helps Google crawl the store.","month",""),
-      di("Schema markup (Product, Review, BreadcrumbList) implemented on product pages","Rich snippets improve CTR in search results by 20–30%.","month",""),
+      di("No duplicate product URLs — confirm /products/ pages have canonical tags","Shopify can create duplicate URLs via collections — canonicals prevent penalties.","next-month",""),
+      di("Internal linking: collection pages link to related collections and top products","Distributes link equity and helps Google crawl the store.","next-month",""),
+      di("Schema markup (Product, Review, BreadcrumbList) implemented on product pages","Rich snippets improve CTR in search results by 20–30%.","next-month",""),
     ]},
   ]},
   { id:"s8", num:8, title:"Inventory & Operations", badge:"high", subsections:[
     { title:"Stock Management", items:[
-      di("All active products have inventory tracking enabled in Shopify","Products without tracking show as always in stock — dangerous.","now",""),
-      di("Out-of-stock products show 'Notify me when available' button","Capturing demand for OOS products prevents permanent lost sales.","week",""),
-      di("Low-stock threshold alerts configured — notify team when SKU drops below 10 units","Prevents stockouts during campaign periods.","week",""),
-      di("No products marked Active with zero inventory (unless pre-order)","Active + zero stock = bad customer experience and wasted ad spend.","now",""),
+      di("All active products have inventory tracking enabled in Shopify","Products without tracking show as always in stock — dangerous.","next-month",""),
+      di("Out-of-stock products show 'Notify me when available' button","Capturing demand for OOS products prevents permanent lost sales.","next-month",""),
+      di("Low-stock threshold alerts configured — notify team when SKU drops below 10 units","Prevents stockouts during campaign periods.","next-month",""),
+      di("No products marked Active with zero inventory (unless pre-order)","Active + zero stock = bad customer experience and wasted ad spend.","next-month",""),
     ]},
     { title:"Fulfilment", items:[
-      di("Shipping zones and rates correct for all Philippine regions (Luzon, Visayas, Mindanao)","Different rates for Metro Manila vs provincial is standard — verify all zones.","now",""),
-      di("Order fulfilment SLA defined and communicated: same-day cut-off, processing time, carrier","Customers expect shipping within 1–2 business days after payment.","week",""),
-      di("Packaging materials stocked for at least 30 days of projected sales volume","Run out of packaging = fulfilment delay = negative reviews.","ongoing",""),
+      di("Shipping zones and rates correct for all Philippine regions (Luzon, Visayas, Mindanao)","Different rates for Metro Manila vs provincial is standard — verify all zones.","next-month",""),
+      di("Order fulfilment SLA defined and communicated: same-day cut-off, processing time, carrier","Customers expect shipping within 1–2 business days after payment.","next-month",""),
+      di("Packaging materials stocked for at least 30 days of projected sales volume","Run out of packaging = fulfilment delay = negative reviews.","next-month",""),
     ]},
   ]},
   { id:"s9", num:9, title:"Homepage & Navigation", badge:"medium", subsections:[
     { title:"Homepage Above the Fold", items:[
-      di("Hero section: one clear headline, one CTA, lifestyle image — visible without scrolling on mobile","","now",""),
-      di("Value proposition communicated above the fold (what makes Sunbeams different)","","week",""),
-      di("Social proof on homepage: review count, press logos, or UGC section","","month",""),
+      di("Hero section: one clear headline, one CTA, lifestyle image — visible without scrolling on mobile","","next-month",""),
+      di("Value proposition communicated above the fold (what makes Sunbeams different)","","next-month",""),
+      di("Social proof on homepage: review count, press logos, or UGC section","","next-month",""),
     ]},
     { title:"Navigation", items:[
-      di("Main navigation: max 6–7 items, no buried collections more than 2 clicks deep","","week",""),
-      di("Search bar functional and prominent on mobile","Shopify Predictive Search app recommended for better UX.","week",""),
-      di("Footer includes: contact, policies, social links, newsletter signup","","week",""),
-      di("Announcement bar with current offer or free shipping threshold (not left blank)","","now",""),
+      di("Main navigation: max 6–7 items, no buried collections more than 2 clicks deep","","next-month",""),
+      di("Search bar functional and prominent on mobile","Shopify Predictive Search app recommended for better UX.","next-month",""),
+      di("Footer includes: contact, policies, social links, newsletter signup","","next-month",""),
+      di("Announcement bar with current offer or free shipping threshold (not left blank)","","next-month",""),
     ]},
   ]},
   { id:"s10", num:10, title:"Loyalty & Retention", badge:"medium", subsections:[
     { title:"Loyalty Programme", items:[
-      di("Loyalty/rewards app installed (Smile.io, Yotpo, or BON Loyalty)","Loyalty mechanics must deliver perceived value immediately — points with no near-term redemption kill engagement.","month",""),
-      di("VIP customer segment defined in Klaviyo (top 10% by LTV) — receives early access and exclusive offers","","month",""),
-      di("Referral programme configured — customers can share a code to earn store credit","","month",""),
+      di("Loyalty/rewards app installed (Smile.io, Yotpo, or BON Loyalty)","Loyalty mechanics must deliver perceived value immediately — points with no near-term redemption kill engagement.","next-month",""),
+      di("VIP customer segment defined in Klaviyo (top 10% by LTV) — receives early access and exclusive offers","","next-month",""),
+      di("Referral programme configured — customers can share a code to earn store credit","","next-month",""),
     ]},
     { title:"Recurring Audit Checks", items:[
-      di("Monthly review of top 10 product pages: conversion rate, bounce rate, heatmap data","","ongoing",""),
-      di("Quarterly app stack audit — remove unused apps, check for duplicates","","ongoing",""),
-      di("Monthly Klaviyo flow performance review — open rate, click rate, revenue per recipient","Benchmark: welcome open rate 45%+, abandoned cart recovery 8%+.","ongoing",""),
-      di("One CRO experiment running at all times — test one variable per page per month","","ongoing","Current experiment: ____"),
+      di("Monthly review of top 10 product pages: conversion rate, bounce rate, heatmap data","","next-month",""),
+      di("Quarterly app stack audit — remove unused apps, check for duplicates","","next-month",""),
+      di("Monthly Klaviyo flow performance review — open rate, click rate, revenue per recipient","Benchmark: welcome open rate 45%+, abandoned cart recovery 8%+.","next-month",""),
+      di("One CRO experiment running at all times — test one variable per page per month","","next-month","Current experiment: ____"),
     ]},
   ]},
 ];
 
 // ── Priority config ────────────────────────────────────────────────────────────
 const DEFAULT_PRIORITIES = [
-  { value:"now",     label:"Now",        color:"#CB0033", bg:"#fce6ec" },
-  { value:"week",    label:"This Week",  color:"#b85c00", bg:"#fff4e6" },
-  { value:"month",   label:"This Month", color:"#3a5fc8", bg:"#eef4ff" },
-  { value:"ongoing", label:"Ongoing",    color:"#2d7a4f", bg:"#edf7f2" },
+  { value:"next-month", label:"Next Month",  description:"Custom",          color:"#7a3d6b", bg:"#fce8f6" },
+  { value:"now",        label:"Now",         description:"Fix today",        color:"#CB0033", bg:"#fce6ec" },
+  { value:"week",       label:"This Week",   description:"Fix within 7 days",color:"#b85c00", bg:"#fff4e6" },
+  { value:"month",      label:"This Month",  description:"30-day task",      color:"#3a5fc8", bg:"#eef4ff" },
+  { value:"ongoing",    label:"Ongoing",     description:"Recurring review", color:"#2d7a4f", bg:"#edf7f2" },
 ];
 
-type PriorityDef = { value: string; label: string; color: string; bg: string };
+type PriorityDef = { value: string; label: string; description: string; color: string; bg: string };
 
 // Color palette for custom priorities (cycles through)
 const CUSTOM_COLORS = [
-  { color:"#6b35a8", bg:"#f3eeff" },
-  { color:"#0e7a6e", bg:"#e6f7f5" },
-  { color:"#a0522d", bg:"#fff0e6" },
-  { color:"#1a5fa8", bg:"#e6f0ff" },
-  { color:"#7a3d6b", bg:"#fce8f6" },
+  { color:"#6b35a8", bg:"#f3eeff", description:"" },
+  { color:"#0e7a6e", bg:"#e6f7f5", description:"" },
+  { color:"#a0522d", bg:"#fff0e6", description:"" },
+  { color:"#1a5fa8", bg:"#e6f0ff", description:"" },
+  { color:"#7a3d6b", bg:"#fce8f6", description:"" },
 ];
 
 // ── Main Component ─────────────────────────────────────────────────────────────
@@ -272,10 +275,10 @@ export default function Audit() {
   // Load on mount
   useEffect(() => {
     loadFromAPI().then(data => {
+      if (data?.storeUrl)   setStoreUrl(data.storeUrl);
       if (data?.sections)   setSections(data.sections);
       if (data?.priorities) setPriorities(data.priorities);
       if (data?.auditor)    setAuditor(data.auditor);
-      if (data?.storeUrl)   setStoreUrl(data.storeUrl);
       if (data?.editPassword) setEditPassword(data.editPassword);
       setLoaded(true);
     });
@@ -304,10 +307,32 @@ export default function Audit() {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       setSyncStatus("saving");
-      await saveToAPI({ sections: newSections, auditor: newAuditor, storeUrl: newUrl, priorities: newPriorities, editPassword: newPassword });
+      await saveToAPI({ sections: newSections, auditor: newAuditor, storeUrl: newUrl, priorities: newPriorities, editPassword: newPassword }, newUrl);
       setSyncStatus("saved");
       setTimeout(() => setSyncStatus(""), 2500);
     }, 800);
+  };
+
+  // When store URL changes — load that URL's saved data or reset to fresh
+  const handleUrlChange = async (newUrl: string) => {
+    const trimmed = newUrl.trim();
+    setStoreUrl(trimmed);
+    if (!trimmed) return;
+    setSyncStatus("loading");
+    const data = await loadFromAPI(trimmed);
+    if (data?.sections) {
+      setSections(data.sections);
+      if (data.priorities) setPriorities(data.priorities);
+      if (data.auditor) setAuditor(data.auditor);
+      setSyncStatus("loaded");
+    } else {
+      // Fresh checklist for this URL
+      setSections(DEFAULT_SECTIONS);
+      setPriorities(DEFAULT_PRIORITIES);
+      setSyncStatus("new");
+      save(DEFAULT_SECTIONS, auditor, trimmed, DEFAULT_PRIORITIES);
+    }
+    setTimeout(() => setSyncStatus(""), 2500);
   };
 
   // ── State helpers ───────────────────────────────────────────────────────────
@@ -339,7 +364,7 @@ export default function Audit() {
     const next = sections.map(s => {
       if (s.id !== sid) return s;
       const subsections = s.subsections.map((ss, si) =>
-        si !== ssIdx ? ss : { ...ss, items: [...ss.items, di("New checklist item","","now","")] }
+        si !== ssIdx ? ss : { ...ss, items: [...ss.items, di("New checklist item","","next-month","")] }
       );
       return { ...s, subsections };
     });
@@ -610,7 +635,7 @@ export default function Audit() {
             Store URL: <strong
               className="meta-editable"
               contentEditable suppressContentEditableWarning
-              onBlur={e => { setStoreUrl(e.currentTarget.innerText); save(sections, auditor, e.currentTarget.innerText, priorities); }}
+              onBlur={e => { handleUrlChange(e.currentTarget.innerText); }}
             >{storeUrl || "Click to add URL"}</strong>
           </div>
         </div>
@@ -641,8 +666,8 @@ export default function Audit() {
           <div className="pill pill-total"><span className="n">{total}</span><span className="l">Total</span></div>
         </div>
         <div className="dash-btns">
-          <span className="sync" style={{color: syncStatus==="saved"?"#2d7a4f":syncStatus==="saving"?"#9a8a84":"#CB0033"}}>
-            {syncStatus==="saving"?"Syncing…":syncStatus==="saved"?"✓ Saved":syncStatus==="error"?"Sync failed":""}
+          <span className="sync" style={{color: syncStatus==="saved"||syncStatus==="loaded"||syncStatus==="new"?"#2d7a4f":syncStatus==="saving"||syncStatus==="loading"?"#9a8a84":"#CB0033"}}>
+            {syncStatus==="saving"?"Syncing…":syncStatus==="saved"?"✓ Saved":syncStatus==="loading"?"Loading…":syncStatus==="loaded"?"✓ Audit loaded":syncStatus==="new"?"✦ New audit started":syncStatus==="error"?"Sync failed":""}
           </span>
           <button className={`btn-edit ${editMode?"active":""}`} onClick={() => requireAuth("edit")}>
             {editMode ? "✓ Done Editing" : "✏ Edit Checklist"}
@@ -675,7 +700,7 @@ export default function Audit() {
           {priorities.map(p => (
             <span key={p.value} className="legend-item">
               <span style={{fontSize:10,fontWeight:600,letterSpacing:"0.08em",textTransform:"uppercase",padding:"2px 8px",borderRadius:3,background:p.bg,color:p.color,cursor:"default"}}>{p.label}</span>
-              {p.value==="now"?"Fix today":p.value==="week"?"Fix within 7 days":p.value==="month"?"30-day task":p.value==="ongoing"?"Recurring review":"Custom"}
+              {p.description || "Custom"}
             </span>
           ))}
         </div>
@@ -856,30 +881,62 @@ export default function Audit() {
       {/* PRIORITY MANAGER MODAL */}
       {showPriorityMgr && (
         <div className="pm-overlay" onClick={() => setShowPM(false)}>
-          <div className="pm-modal" onClick={e => e.stopPropagation()}>
+          <div className="pm-modal" style={{maxWidth:520,width:"95vw"}} onClick={e => e.stopPropagation()}>
             <div className="pm-title">Priority Labels</div>
-            <div className="pm-sub">Manage the priority options available on every checklist item.</div>
-            <div className="pm-list">
+            <div className="pm-sub">Edit labels, descriptions, and colors for each priority.</div>
+            <div className="pm-list" style={{gap:10}}>
               {priorities.map((p, i) => (
-                <div key={p.value} className="pm-row">
-                  <div className="pm-swatch" style={{background: p.bg, border:`1.5px solid ${p.color}`}}/>
-                  <span className="pm-label" style={{color: p.color}}>{p.label}</span>
-                  {DEFAULT_PRIORITIES.find(d => d.value === p.value) ? (
-                    <span className="pm-default">Default</span>
-                  ) : (
-                    <button className="pm-del" title="Delete" onClick={() => {
-                      const next = priorities.filter((_,x) => x !== i);
-                      setPriorities(next);
-                      save(sections, auditor, storeUrl, next);
-                    }}>✕</button>
-                  )}
+                <div key={p.value} style={{background:"#FAF7F4",border:"1px solid #E8DDD5",borderRadius:8,padding:"12px 14px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                    {/* Color swatch + picker */}
+                    <div style={{position:"relative",flexShrink:0}}>
+                      <div style={{width:28,height:28,borderRadius:5,background:p.bg,border:`2px solid ${p.color}`,cursor:"pointer",position:"relative",overflow:"hidden"}}>
+                        <input type="color" value={p.color} onChange={e=>{
+                          const next=priorities.map((x,j)=>j===i?{...x,color:e.target.value}:x);
+                          setPriorities(next); save(sections,auditor,storeUrl,next);
+                        }} style={{position:"absolute",inset:0,opacity:0,cursor:"pointer",width:"100%",height:"100%"}}/>
+                      </div>
+                    </div>
+                    {/* Label input */}
+                    <input
+                      value={p.label}
+                      onChange={e=>{const next=priorities.map((x,j)=>j===i?{...x,label:e.target.value}:x);setPriorities(next);}}
+                      onBlur={()=>save(sections,auditor,storeUrl,priorities)}
+                      style={{flex:1,border:"1px solid #E8DDD5",borderRadius:5,padding:"5px 8px",fontSize:12,fontWeight:600,color:p.color,background:"#fff",outline:"none"}}
+                      placeholder="Label"
+                    />
+                    {/* BG color picker */}
+                    <div style={{position:"relative",flexShrink:0}} title="Background color">
+                      <div style={{width:22,height:22,borderRadius:4,background:p.bg,border:"1px solid #E8DDD5",cursor:"pointer",position:"relative",overflow:"hidden"}}>
+                        <input type="color" value={p.bg} onChange={e=>{
+                          const next=priorities.map((x,j)=>j===i?{...x,bg:e.target.value}:x);
+                          setPriorities(next); save(sections,auditor,storeUrl,next);
+                        }} style={{position:"absolute",inset:0,opacity:0,cursor:"pointer",width:"100%",height:"100%"}}/>
+                      </div>
+                    </div>
+                    {/* Delete button — custom only */}
+                    {!DEFAULT_PRIORITIES.find(d => d.value === p.value) ? (
+                      <button style={{background:"none",border:"none",color:"#A08070",cursor:"pointer",fontSize:14,padding:"0 2px",flexShrink:0}} onClick={() => {
+                        const next = priorities.filter((_,x) => x !== i);
+                        setPriorities(next); save(sections, auditor, storeUrl, next);
+                      }}>✕</button>
+                    ) : <div style={{width:18}}/>}
+                  </div>
+                  {/* Description input */}
+                  <input
+                    value={p.description||""}
+                    onChange={e=>{const next=priorities.map((x,j)=>j===i?{...x,description:e.target.value}:x);setPriorities(next);}}
+                    onBlur={()=>save(sections,auditor,storeUrl,priorities)}
+                    style={{width:"100%",border:"1px solid #E8DDD5",borderRadius:5,padding:"5px 8px",fontSize:11,color:"#6B4A38",background:"#fff",outline:"none",boxSizing:"border-box" as const}}
+                    placeholder="Description (e.g. Fix within 7 days)"
+                  />
                 </div>
               ))}
             </div>
-            <div className="pm-add">
+            <div className="pm-add" style={{marginTop:12}}>
               <input
                 className="pm-input"
-                placeholder="e.g. Next Quarter, Blocked, Today..."
+                placeholder="New priority label..."
                 value={newPriorityLabel}
                 onChange={e => setNewPL(e.target.value)}
                 onKeyDown={e => { if(e.key==="Enter") e.currentTarget.blur(); }}
@@ -890,7 +947,7 @@ export default function Audit() {
                 const value = label.toLowerCase().replace(/\s+/g,"-").replace(/[^a-z0-9-]/g,"");
                 if (priorities.find(p => p.value === value)) return;
                 const colorSet = CUSTOM_COLORS[(priorities.length - DEFAULT_PRIORITIES.length) % CUSTOM_COLORS.length];
-                const next = [...priorities, { value, label, ...colorSet }];
+                const next = [...priorities, { value, label, description:"", ...colorSet }];
                 setPriorities(next);
                 save(sections, auditor, storeUrl, next);
                 setNewPL("");

@@ -25,7 +25,7 @@ interface Section {
 // ── API ───────────────────────────────────────────────────────────────────────
 const API_BASE = typeof window !== "undefined" ? window.location.origin : "";
 
-async function loadFromAPI(): Promise<{sections?:Section[]; auditor?:string; storeUrl?:string} | null> {
+async function loadFromAPI(): Promise<{sections?:Section[]; priorities?:PriorityDef[]; auditor?:string; storeUrl?:string} | null> {
   try {
     const r = await fetch(`${API_BASE}/api/progress`);
     if (!r.ok) return null;

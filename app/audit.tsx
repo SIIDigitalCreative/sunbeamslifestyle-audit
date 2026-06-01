@@ -947,7 +947,7 @@ export default function Audit() {
                 const value = label.toLowerCase().replace(/\s+/g,"-").replace(/[^a-z0-9-]/g,"");
                 if (priorities.find(p => p.value === value)) return;
                 const colorSet = CUSTOM_COLORS[(priorities.length - DEFAULT_PRIORITIES.length) % CUSTOM_COLORS.length];
-                const next = [...priorities, { value, label, description:"", ...colorSet }];
+                const next = [...priorities, { value, label, ...colorSet }];
                 setPriorities(next);
                 save(sections, auditor, storeUrl, next);
                 setNewPL("");

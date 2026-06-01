@@ -1,14 +1,7 @@
-// File location in your Next.js project: app/api/progress/route.ts
-// (or pages/api/progress.ts if you're using the Pages router)
-//
-// Required environment variable (already in your Vercel project):
-//   KV_REST_API_URL   — your Upstash Redis REST URL
-//   KV_REST_API_TOKEN — your Upstash Redis token (use the read-write token)
-
 import { NextRequest, NextResponse } from "next/server";
 
-const KV_URL   = process.env.KV_REST_API_URL   || process.env.KV_URL   || "";
-const KV_TOKEN = process.env.KV_REST_API_TOKEN  || process.env.KV_REST_API_READ_ONLY_TOKEN || "";
+const KV_URL   = process.env.KV_REST_API_URL  || process.env.KV_URL  || "";
+const KV_TOKEN = process.env.KV_REST_API_TOKEN || "";
 
 async function kvGet(key: string) {
   const r = await fetch(`${KV_URL}/get/${encodeURIComponent(key)}`, {
@@ -18,18 +11,19 @@ async function kvGet(key: string) {
   if (!r.ok) return null;
   const { result } = await r.json();
   if (!result) return null;
-  return typeof result === "string" ? JSON.parse(result) : result;
+  try { return JSON.parse(result); } catch { return null; }
 }
 
 async function kvSet(key: string, value: object) {
-  const r = await fetch(`${KV_URL}/set/${encodeURIComponent(key)}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${KV_TOKEN}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(value),
+  // Upstash REST: POST /set  body is [key, value_as_string]
+  const r = await fetch(`${KV_URL}/set/${encodeURIComponent(key)}/${encodeURIComponent(JSON.stringify(value))}`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${KV_TOKEN}` },
   });
+  if (!r.ok) {
+    const text = await r.text();
+    console.error("kvSet failed:", r.status, text);
+  }
   return r.ok;
 }
 

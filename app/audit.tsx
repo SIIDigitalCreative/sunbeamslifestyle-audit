@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-type Priority = "now" | "week" | "month" | "ongoing";
+type Priority = string; // "now" | "week" | "month" | "ongoing" | any custom label
 
 interface CheckItem {
   id: string;
@@ -197,41 +197,57 @@ const DEFAULT_SECTIONS: Section[] = [
 ];
 
 // ── Priority config ────────────────────────────────────────────────────────────
-const PRIORITIES: { value: Priority; label: string; color: string; bg: string }[] = [
+const DEFAULT_PRIORITIES = [
   { value:"now",     label:"Now",        color:"#CB0033", bg:"#fce6ec" },
   { value:"week",    label:"This Week",  color:"#b85c00", bg:"#fff4e6" },
   { value:"month",   label:"This Month", color:"#3a5fc8", bg:"#eef4ff" },
   { value:"ongoing", label:"Ongoing",    color:"#2d7a4f", bg:"#edf7f2" },
 ];
 
-const pInfo = (p: Priority) => PRIORITIES.find(x => x.value === p) || PRIORITIES[0];
+type PriorityDef = { value: string; label: string; color: string; bg: string };
+
+// Color palette for custom priorities (cycles through)
+const CUSTOM_COLORS = [
+  { color:"#6b35a8", bg:"#f3eeff" },
+  { color:"#0e7a6e", bg:"#e6f7f5" },
+  { color:"#a0522d", bg:"#fff0e6" },
+  { color:"#1a5fa8", bg:"#e6f0ff" },
+  { color:"#7a3d6b", bg:"#fce8f6" },
+];
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 export default function Audit() {
-  const [sections, setSections]     = useState<Section[]>(DEFAULT_SECTIONS);
-  const [auditor,  setAuditor]      = useState("");
-  const [storeUrl, setStoreUrl]     = useState("");
-  const [editMode, setEditMode]     = useState(false);
-  const [collapsed, setCollapsed]   = useState<Record<string,boolean>>({});
-  const [syncStatus, setSyncStatus] = useState("");
-  const [loaded, setLoaded]         = useState(false);
+  const [sections, setSections]         = useState<Section[]>(DEFAULT_SECTIONS);
+  const [priorities, setPriorities]     = useState<PriorityDef[]>(DEFAULT_PRIORITIES);
+  const [auditor,  setAuditor]          = useState("");
+  const [storeUrl, setStoreUrl]         = useState("");
+  const [editMode, setEditMode]         = useState(false);
+  const [showPriorityMgr, setShowPM]   = useState(false);
+  const [newPriorityLabel, setNewPL]   = useState("");
+  const [collapsed, setCollapsed]       = useState<Record<string,boolean>>({});
+  const [syncStatus, setSyncStatus]     = useState("");
+  const [loaded, setLoaded]             = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout>|null>(null);
+
+  const pInfo = (p: string) => priorities.find(x => x.value === p) || priorities[0];
 
   // Load on mount
   useEffect(() => {
     loadFromAPI().then(data => {
-      if (data?.sections) setSections(data.sections);
-      if (data?.auditor)  setAuditor(data.auditor);
-      if (data?.storeUrl) setStoreUrl(data.storeUrl);
+      if (data?.sections)   setSections(data.sections);
+      if (data?.priorities) setPriorities(data.priorities);
+      if (data?.auditor)    setAuditor(data.auditor);
+      if (data?.storeUrl)   setStoreUrl(data.storeUrl);
       setLoaded(true);
     });
     // Poll every 30s
     const poll = setInterval(() => {
       if (!editMode) {
         loadFromAPI().then(data => {
-          if (data?.sections) setSections(data.sections);
-          if (data?.auditor)  setAuditor(data.auditor);
-          if (data?.storeUrl) setStoreUrl(data.storeUrl);
+          if (data?.sections)   setSections(data.sections);
+          if (data?.priorities) setPriorities(data.priorities);
+          if (data?.auditor)    setAuditor(data.auditor);
+          if (data?.storeUrl)   setStoreUrl(data.storeUrl);
         });
       }
     }, 30000);
@@ -239,11 +255,16 @@ export default function Audit() {
   }, []);
 
   // Auto-save with debounce
-  const save = (newSections: Section[], newAuditor = auditor, newUrl = storeUrl) => {
+  const save = (
+    newSections: Section[] = sections,
+    newAuditor: string = auditor,
+    newUrl: string = storeUrl,
+    newPriorities: PriorityDef[] = priorities
+  ) => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       setSyncStatus("saving");
-      await saveToAPI({ sections: newSections, auditor: newAuditor, storeUrl: newUrl });
+      await saveToAPI({ sections: newSections, auditor: newAuditor, storeUrl: newUrl, priorities: newPriorities });
       setSyncStatus("saved");
       setTimeout(() => setSyncStatus(""), 2500);
     }, 800);
@@ -479,6 +500,23 @@ export default function Audit() {
     .btn-del-section{padding:5px 12px;border:1px solid #fce6ec;background:#fce6ec;color:#CB0033;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;border-radius:3px;transition:all 0.18s;flex-shrink:0;}
     .btn-del-section:hover{background:#CB0033;color:#fff;}
 
+    /* PRIORITY MANAGER MODAL */
+    .pm-overlay{position:fixed;inset:0;background:rgba(26,18,16,0.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;}
+    .pm-modal{background:#fff;border:1.5px solid #e8e2dc;border-radius:8px;padding:28px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(26,18,16,0.2);}
+    .pm-title{font-family:'Cormorant Garamond',serif;font-size:22px;color:#1a1210;margin-bottom:4px;}
+    .pm-sub{font-size:12px;color:#9a8a84;margin-bottom:20px;}
+    .pm-list{display:flex;flex-direction:column;gap:8px;margin-bottom:20px;}
+    .pm-row{display:flex;align-items:center;gap:10px;padding:8px 12px;background:#faf8f6;border-radius:4px;border:1px solid #e8e2dc;}
+    .pm-swatch{width:32px;height:24px;border-radius:3px;flex-shrink:0;}
+    .pm-label{flex:1;font-size:12px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;}
+    .pm-default{font-size:10px;color:#9a8a84;letter-spacing:0.08em;}
+    .pm-del{background:none;border:none;color:#CB0033;cursor:pointer;font-size:14px;padding:0 3px;opacity:0.5;transition:opacity 0.18s;}
+    .pm-del:hover{opacity:1;}
+    .pm-add{display:flex;gap:8px;align-items:center;}
+    .pm-input{flex:1;border:1.5px solid #e8e2dc;border-radius:4px;padding:9px 12px;font-family:'DM Sans',sans-serif;font-size:13px;outline:none;background:#faf8f6;}
+    .pm-input:focus{border-color:#CB0033;background:#fff;}
+    .pm-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid #e8e2dc;}
+
     @media(max-width:640px){
       .header{padding:28px 18px 22px;} .h-title{font-size:30px;}
       .dash{padding:10px 14px;gap:10px;} .stat-pills{display:none;}
@@ -510,7 +548,7 @@ export default function Audit() {
             Auditor: <strong
               className="meta-editable"
               contentEditable suppressContentEditableWarning
-              onBlur={e => { setAuditor(e.currentTarget.innerText); save(sections, e.currentTarget.innerText, storeUrl); }}
+              onBlur={e => { setAuditor(e.currentTarget.innerText); save(sections, e.currentTarget.innerText, storeUrl, priorities); }}
             >{auditor || "Click to add name"}</strong>
           </div>
           <div className="meta-chip">Date: <strong>{new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})}</strong></div>
@@ -518,7 +556,7 @@ export default function Audit() {
             Store URL: <strong
               className="meta-editable"
               contentEditable suppressContentEditableWarning
-              onBlur={e => { setStoreUrl(e.currentTarget.innerText); save(sections, auditor, e.currentTarget.innerText); }}
+              onBlur={e => { setStoreUrl(e.currentTarget.innerText); save(sections, auditor, e.currentTarget.innerText, priorities); }}
             >{storeUrl || "Click to add URL"}</strong>
           </div>
         </div>
@@ -555,11 +593,14 @@ export default function Audit() {
           <button className={`btn-edit ${editMode?"active":""}`} onClick={() => setEditMode(m=>!m)}>
             {editMode ? "✓ Done Editing" : "✏ Edit Checklist"}
           </button>
+          <button className="btn-reset" style={{borderColor:"#A47860",color:"#A47860"}} onClick={() => setShowPM(true)}>
+            ⊕ Priorities
+          </button>
           <button className="btn-export" onClick={exportCSV}>Export CSV</button>
           <button className="btn-reset" onClick={() => {
             if(confirm("Reset all progress? This cannot be undone.")) {
               const reset = sections.map(s => ({...s, subsections: s.subsections.map(ss => ({...ss, items: ss.items.map(it => ({...it,checked:false,finding:""}))}))}));
-              setSections(reset); save(reset);
+              setSections(reset); save(reset, auditor, storeUrl, priorities);
             }
           }}>Reset</button>
         </div>
@@ -577,10 +618,10 @@ export default function Audit() {
         {/* Legend */}
         <div className="legend">
           <span className="legend-title">Priority:</span>
-          {PRIORITIES.map(p => (
+          {priorities.map(p => (
             <span key={p.value} className="legend-item">
-              <span className={`ptag ptag-${p.value}`} style={{cursor:"default",backgroundImage:"none",paddingRight:8}}>{p.label}</span>
-              {p.value==="now"?"Fix today":p.value==="week"?"Fix within 7 days":p.value==="month"?"30-day task":"Recurring review"}
+              <span style={{fontSize:10,fontWeight:600,letterSpacing:"0.08em",textTransform:"uppercase",padding:"2px 8px",borderRadius:3,background:p.bg,color:p.color,cursor:"default"}}>{p.label}</span>
+              {p.value==="now"?"Fix today":p.value==="week"?"Fix within 7 days":p.value==="month"?"30-day task":p.value==="ongoing"?"Recurring review":"Custom"}
             </span>
           ))}
         </div>
@@ -666,9 +707,18 @@ export default function Audit() {
                             </>
                           )}
                         </div>
-                        <select className={`ptag ptag-${it.priority}`} value={it.priority}
-                          onChange={e => updateItem(s.id, ssIdx, iIdx, {priority: e.target.value as Priority})}>
-                          {PRIORITIES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                        <select
+                          value={it.priority}
+                          onChange={e => updateItem(s.id, ssIdx, iIdx, {priority: e.target.value})}
+                          style={{
+                            fontSize:10, fontWeight:600, letterSpacing:"0.08em", textTransform:"uppercase",
+                            padding:"2px 16px 2px 8px", borderRadius:3, flexShrink:0, marginTop:2,
+                            border:"none", cursor:"pointer", fontFamily:"'DM Sans',sans-serif", outline:"none",
+                            appearance:"none", WebkitAppearance:"none",
+                            background:`${pInfo(it.priority).bg} url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='7' height='4' viewBox='0 0 7 4'%3E%3Cpath d='M0 0l3.5 4L7 0z' fill='currentColor' opacity='0.5'/%3E%3C/svg%3E") no-repeat right 5px center`,
+                            color: pInfo(it.priority).color,
+                          }}>
+                          {priorities.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
                         </select>
                         {editMode && (
                           <button className="btn-del-item" onClick={() => deleteItem(s.id, ssIdx, iIdx)} title="Delete item">✕</button>
@@ -694,6 +744,55 @@ export default function Audit() {
           <button className="btn-add-section" onClick={addSection}>+ Add New Section</button>
         )}
       </div>
+      {/* PRIORITY MANAGER MODAL */}
+      {showPriorityMgr && (
+        <div className="pm-overlay" onClick={() => setShowPM(false)}>
+          <div className="pm-modal" onClick={e => e.stopPropagation()}>
+            <div className="pm-title">Priority Labels</div>
+            <div className="pm-sub">Manage the priority options available on every checklist item.</div>
+            <div className="pm-list">
+              {priorities.map((p, i) => (
+                <div key={p.value} className="pm-row">
+                  <div className="pm-swatch" style={{background: p.bg, border:`1.5px solid ${p.color}`}}/>
+                  <span className="pm-label" style={{color: p.color}}>{p.label}</span>
+                  {DEFAULT_PRIORITIES.find(d => d.value === p.value) ? (
+                    <span className="pm-default">Default</span>
+                  ) : (
+                    <button className="pm-del" title="Delete" onClick={() => {
+                      const next = priorities.filter((_,x) => x !== i);
+                      setPriorities(next);
+                      save(sections, auditor, storeUrl, next);
+                    }}>✕</button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="pm-add">
+              <input
+                className="pm-input"
+                placeholder="e.g. Next Quarter, Blocked, Today..."
+                value={newPriorityLabel}
+                onChange={e => setNewPL(e.target.value)}
+                onKeyDown={e => { if(e.key==="Enter") e.currentTarget.blur(); }}
+              />
+              <button className="btn-export" style={{whiteSpace:"nowrap"}} onClick={() => {
+                const label = newPriorityLabel.trim();
+                if (!label) return;
+                const value = label.toLowerCase().replace(/\s+/g,"-").replace(/[^a-z0-9-]/g,"");
+                if (priorities.find(p => p.value === value)) return;
+                const colorSet = CUSTOM_COLORS[(priorities.length - DEFAULT_PRIORITIES.length) % CUSTOM_COLORS.length];
+                const next = [...priorities, { value, label, ...colorSet }];
+                setPriorities(next);
+                save(sections, auditor, storeUrl, next);
+                setNewPL("");
+              }}>+ Add</button>
+            </div>
+            <div className="pm-actions">
+              <button className="btn-reset" onClick={() => setShowPM(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
